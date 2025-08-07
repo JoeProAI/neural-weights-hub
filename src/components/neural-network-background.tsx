@@ -19,7 +19,7 @@ interface MousePosition {
 
 export function NeuralNetworkBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number>(0);
   const nodesRef = useRef<Node[]>([]);
   const [mousePos, setMousePos] = useState<MousePosition>({ x: 0, y: 0 });
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -180,9 +180,10 @@ export function NeuralNetworkBackground() {
       width={dimensions.width}
       height={dimensions.height}
       onMouseMove={handleMouseMove}
-      className="fixed inset-0 pointer-events-none z-0"
+      className="fixed inset-0 z-0"
       style={{
         background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+        pointerEvents: 'auto',
       }}
     />
   );

@@ -7,14 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { NeuralNetworkBackground } from '@/components/neural-network-background';
 import { 
-  Brain, 
   Zap, 
   Code, 
   Users, 
   ArrowRight, 
   CheckCircle,
   HardDrive,
-  Layers
+  Layers,
+  Cpu
 } from 'lucide-react';
 
 export default function Home() {
@@ -47,7 +47,7 @@ export default function Home() {
             <main className="mt-10 mx-auto max-w-7xl px-4 sm:mt-12 sm:px-6 md:mt-16 lg:mt-20 lg:px-8 xl:mt-28">
               <div className="sm:text-center lg:text-left">
                 <div className="flex items-center gap-3 mb-6 sm:justify-center lg:justify-start">
-                  <Brain className="h-12 w-12 text-blue-600" />
+                  <Cpu className="h-12 w-12 text-blue-600" />
                   <h1 className="text-4xl font-bold text-slate-900 dark:text-white">
                     Neural Weights Hub
                   </h1>
@@ -187,7 +187,7 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-6 w-6 text-blue-600" />
+                  <Cpu className="h-6 w-6 text-blue-600" />
                   GPT-OSS 20B
                 </CardTitle>
                 <CardDescription>
@@ -220,7 +220,7 @@ export default function Home() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Brain className="h-6 w-6 text-purple-600" />
+                  <Cpu className="h-6 w-6 text-purple-600" />
                   GPT-OSS 120B
                 </CardTitle>
                 <CardDescription>
