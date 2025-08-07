@@ -61,23 +61,33 @@ export default function Home() {
                   Built by a neuroscientist with deep expertise in neural networks - from mouse sensory processing to cutting-edge AI models.
                 </p>
                 
-                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start">
+                <div className="mt-5 sm:mt-8 sm:flex sm:justify-center lg:justify-start gap-3">
                   <div className="rounded-md shadow">
                     <Button 
                       size="lg" 
                       onClick={() => router.push('/auth')}
                       className="w-full flex items-center justify-center px-8 py-3 text-base font-medium"
                     >
-                      Get Started
+                      Get Started Free
                       <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </div>
-                  <div className="mt-3 sm:mt-0 sm:ml-3">
+                  <div className="mt-3 sm:mt-0">
                     <Button 
                       variant="outline" 
                       size="lg"
-                      onClick={() => router.push('/auth')}
+                      onClick={() => router.push('/pricing')}
                       className="w-full flex items-center justify-center px-8 py-3 text-base font-medium"
+                    >
+                      View Pricing
+                    </Button>
+                  </div>
+                  <div className="mt-3 sm:mt-0">
+                    <Button 
+                      variant="ghost" 
+                      size="lg"
+                      onClick={() => router.push('/auth')}
+                      className="w-full flex items-center justify-center px-8 py-3 text-base font-medium text-slate-600 hover:text-slate-900"
                     >
                       Sign In
                     </Button>
