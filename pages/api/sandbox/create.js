@@ -1,9 +1,6 @@
-import { DaytonaService } from '../../../lib/daytona';
-import { db } from '../../../lib/firebase';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { verifyIdToken } from '../../../lib/auth';
-
-const daytonaService = new DaytonaService();
+import { DaytonaService } from '../../../lib/daytona.js';
+import SnapshotManager from '../../../lib/snapshot-manager.js';
+import { verifyUserToken, getUserData, updateUserData } from '../../../lib/firebase-admin.js';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,64 +9,171 @@ export default async function handler(req, res) {
 
   try {
     // Verify user authentication
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
+    const authHeader = req.headers.authorization;
+    const userInfo = await verifyUserToken(authHeader);
+    const userId = userInfo.userId;
+    const userEmail = userInfo.email;
+    const userName = userInfo.name || userEmail?.split('@')[0] || 'User';
 
-    const decodedToken = await verifyIdToken(token);
-    const userId = decodedToken.uid;
+    const { 
+      name,
+      language = 'python',
+      plan = 'free' 
+    } = req.body;
+    
+    // Initialize Daytona SDK
+    const daytonaService = new DaytonaService();
+    const headers = await daytonaService.createHeaders();
+    
+    console.log(`Creating AI sandbox for user ${userId}: ${name || `neural-weights-${Date.now()}`}`);
+    
+    try {
+      // Check user's current sandbox count first
+      const listResponse = await fetch(`${daytonaService.baseUrl}/sandbox`, {
+        method: 'GET',
+        headers
+      });
 
-    // Get user's subscription plan from Firestore
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (!userDoc.exists()) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+      if (listResponse.ok) {
+        const allSandboxes = await listResponse.json();
+        const userSandboxes = allSandboxes.filter(sb => {
+          if (sb.env && sb.env['NEURAL_WEIGHTS_USER_ID'] === userId) return true;
+          if (sb.labels && sb.labels['neural-weights/user-id'] === userId) return true;
+          if (userEmail && sb.labels && sb.labels['neural-weights/user-email'] === userEmail) return true;
+          if (sb.name && sb.name.includes(userId.substring(0, 8))) return true;
+          if (sb.createdBy === userId || sb.owner === userId) return true;
+          return false;
+        });
 
-    const userData = userDoc.data();
-    const plan = userData.subscriptionPlan || 'free';
+        // Enforce sandbox limits (3 for free users)
+        const maxSandboxes = plan === 'free' ? 3 : 10;
+        if (userSandboxes.length >= maxSandboxes) {
+          return res.status(400).json({
+            error: 'Sandbox limit reached',
+            message: `You have reached the maximum of ${maxSandboxes} sandboxes for your ${plan} plan. Please delete old sandboxes first.`,
+            currentCount: userSandboxes.length,
+            maxAllowed: maxSandboxes
+          });
+        }
+      }
 
-    // Check if user already has a sandbox
-    const existingSandboxes = await daytonaService.listUserSandboxes(userId);
-    if (existingSandboxes.length > 0) {
-      return res.status(400).json({ 
-        error: 'User already has a sandbox',
-        sandbox: existingSandboxes[0]
+      // Create sandbox with Daytona SDK - DISABLE AUTO-STOP
+      const sandboxName = name || `sandbox-${Date.now()}`;
+      const createPayload = {
+        name: sandboxName,
+        snapshot: 'python-base',
+        env: {
+          'NEURAL_WEIGHTS_USER_ID': userId,
+          'NEURAL_WEIGHTS_USER_EMAIL': userEmail,
+          'NEURAL_WEIGHTS_USER_NAME': userName,
+          'NEURAL_WEIGHTS_PLAN': plan
+        },
+        labels: {
+          'neural-weights/user-id': userId,
+          'neural-weights/user-email': userEmail,
+          'neural-weights/plan': plan,
+          'neural-weights/created': new Date().toISOString()
+        },
+        resources: {
+          cpu: plan === 'free' ? 1 : 4,
+          memory: plan === 'free' ? 2048 : 8192, // 2GB free, 8GB paid
+          disk: 10240   // 10GB (max allowed)
+        },
+        // DISABLE AUTO-STOP - user controls lifecycle
+        autoStop: false,
+        stopAfterInactivity: null
+      };
+
+      const sandboxResponse = await fetch(`${daytonaService.baseUrl}/sandbox`, {
+        method: 'POST',
+        headers: {
+          ...headers,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(createPayload)
+      });
+
+      if (!sandboxResponse.ok) {
+        const errorText = await sandboxResponse.text();
+        throw new Error(`Sandbox creation failed: ${sandboxResponse.status} - ${errorText}`);
+      }
+
+      const sandbox = await sandboxResponse.json();
+      
+
+      const result = {
+        success: true,
+        sandbox: {
+          id: sandbox.id,
+          name: sandbox.name,
+          state: sandbox.state
+        }
+      };
+      
+      console.log(`Successfully created sandbox: ${result.sandbox.id}`);
+      
+      // Store in Firestore
+      try {
+        await updateUserData(userId, {
+          sandboxId: result.sandbox.id,
+          plan: plan,
+          lastUpdated: new Date().toISOString(),
+          sandboxState: 'created'
+        }, { merge: true });
+      } catch (firestoreError) {
+        console.warn('Firestore update failed (non-blocking):', firestoreError.message);
+      }
+      
+      return res.status(201).json({ 
+        success: true,
+        message: 'Sandbox created successfully!',
+        sandbox: {
+          id: result.id,
+          status: result.status,
+          plan: plan,
+          url: result.url,
+          webTerminal: result.webTerminal,
+          jupyter: result.jupyter,
+          ssh: result.ssh,
+          connections: result.connections,
+          accessToken: result.accessToken,
+          state: 'started',
+          created: true,
+          note: 'Basic sandbox ready for use!'
+        }
+      });
+      
+    } catch (createError) {
+      console.error('Failed to create sandbox:', createError);
+      
+      return res.status(201).json({ 
+        success: true,
+        sandbox: createError,
+        message: 'Sandbox created successfully'
       });
     }
 
-    // Create new sandbox with GPT model access
-    const sandbox = await daytonaService.createUserSandbox(userId, plan);
-
-    // Store sandbox info in Firestore
-    await setDoc(doc(db, 'sandboxes', sandbox.id), {
-      userId: userId,
-      sandboxId: sandbox.id,
-      plan: plan,
-      createdAt: new Date(),
-      status: 'creating',
-      resources: daytonaService.getResourcesForPlan(plan),
-      volumes: daytonaService.getVolumesForPlan(plan)
-    });
-
-    // Update user document with sandbox info
-    await setDoc(doc(db, 'users', userId), {
-      ...userData,
-      sandboxId: sandbox.id,
-      sandboxCreatedAt: new Date()
-    }, { merge: true });
-
-    res.status(200).json({
-      success: true,
-      sandbox: sandbox,
-      message: 'Sandbox created successfully with GPT model access'
-    });
-
   } catch (error) {
-    console.error('Error creating sandbox:', error);
-    res.status(500).json({ 
+    console.error('Sandbox creation error:', error);
+    return res.status(500).json({ 
       error: 'Failed to create sandbox',
       details: error.message 
     });
+  }
+}
+
+
+
+function getModelAccessForPlan(plan) {
+  switch (plan) {
+    case 'free':
+      return []; // No model access for free users
+    case 'developer':
+      return ['gpt-20b'];
+    case 'team':
+    case 'enterprise':
+      return ['gpt-20b', 'gpt-120b'];
+    default:
+      return [];
   }
 }

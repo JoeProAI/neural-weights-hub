@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Link from 'next/link';
 import NeuralNetworkBackground from './NeuralNetworkBackground';
 
 export default function LandingPage({ onSignup }) {
@@ -67,7 +68,7 @@ export default function LandingPage({ onSignup }) {
               onClick={onSignup}
               className="bg-blue-600 hover:bg-blue-700 px-8 py-4 text-lg rounded font-semibold transition-all"
             >
-              Start Free Trial
+              Get Started Free
             </button>
             <button 
               onClick={testAPI}

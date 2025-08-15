@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import ComprehensiveDashboard from '../components/ComprehensiveDashboard';
+import SimpleDashboard from '../components/SimpleDashboard';
 import AuthForm from '../components/AuthForm';
 import LandingPage from '../components/LandingPage';
 
@@ -18,9 +18,9 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // If user is authenticated, show comprehensive dashboard
+  // If user is authenticated, show simple working dashboard
   if (user) {
-    return <ComprehensiveDashboard />;
+    return <SimpleDashboard />;
   }
 
   // If showing auth form
