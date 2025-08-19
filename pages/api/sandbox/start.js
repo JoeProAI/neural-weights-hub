@@ -102,7 +102,7 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Sandbox start error:', error);
-    return res.status(500).json({ 
+    return res.status(400).json({ 
       error: 'Failed to start sandbox',
       details: error.message 
     });

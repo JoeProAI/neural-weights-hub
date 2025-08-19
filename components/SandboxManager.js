@@ -46,6 +46,18 @@ export default function SandboxManager() {
     }
   };
 
+  const openCollaborativeIDE = (sandboxId) => {
+    setIdeMode(sandboxId);
+  };
+
+  const openPreview = (sandboxId) => {
+    setPreviewSandbox(sandboxId);
+  };
+
+  const stopSandbox = async (sandboxId) => {
+    await handleSandboxAction(sandboxId, 'stop');
+  };
+
   const handleSandboxAction = async (sandboxId, action) => {
     setActionLoading(prev => ({ ...prev, [sandboxId]: action }));
     
