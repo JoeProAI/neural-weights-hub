@@ -304,22 +304,29 @@ export default function SandboxManager() {
         {(sandbox.state === 'STARTED' || sandbox.state === 'started') && (
           <>
             <button
-              onClick={() => openCollaborativeIDE(sandbox.id)}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold flex items-center gap-2"
+              onClick={() => openCollaborativeIDE(sandboxId)}
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
             >
-              <span>⚡</span> Launch IDE
+              <span className="flex items-center gap-2">
+                🚀 Launch IDE
+              </span>
             </button>
             <button
               onClick={() => openPreview(sandbox)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+              className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
             >
-              Preview
+              <span className="flex items-center gap-2">
+                👁️ Preview
+              </span>
             </button>
             <button
-              onClick={() => stopSandbox(sandbox.id)}
-              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm"
+              onClick={() => stopSandbox(sandboxId)}
+              disabled={currentAction}
+              className="px-4 py-2 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none"
             >
-              Stop
+              <span className="flex items-center gap-2">
+                ⏹️ Stop
+              </span>
             </button>
           </>
         )}
@@ -329,58 +336,42 @@ export default function SandboxManager() {
             <button
               onClick={() => handleSandboxAction(sandboxId, 'start')}
               disabled={currentAction}
-              className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:bg-gray-400"
+              className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none"
             >
-              {currentAction === 'start' ? 'Starting...' : '⚡ Start'}
+              {currentAction === 'start' ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  Starting...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  ⚡ Power On
+                </span>
+              )}
             </button>
             <button
               onClick={() => openCollaborativeIDE(sandboxId)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200"
             >
-              Launch IDE
+              <span className="flex items-center gap-2">
+                🚀 Launch IDE
+              </span>
             </button>
             <button
-              onClick={async () => {
-                setActionLoading(prev => ({ ...prev, [sandboxId]: 'preview' }));
-                try {
-                  // Start sandbox first
-                  const token = await user.getIdToken();
-                  const startResponse = await fetch('/api/sandbox/start', {
-                    method: 'POST',
-                    headers: {
-                      'Authorization': `Bearer ${token}`,
-                      'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ sandboxId })
-                  });
-                  
-                  if (startResponse.ok) {
-                    toast.success('Starting sandbox...');
-                    // Wait for startup
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    // Open preview
-                    console.log('Stopped sandbox preview button clicked for:', sandboxId);
-                    const previewUrl = `https://22222-${sandboxId}.proxy.daytona.work`;
-                    console.log('Setting preview sandbox for stopped state:', { id: sandboxId, name: sandbox.name, url: previewUrl });
-                    setPreviewSandbox({
-                      id: sandboxId,
-                      name: sandbox.name || `Lab-${sandboxId.substring(0, 8)}`,
-                      url: previewUrl
-                    });
-                    fetchSandboxes(); // Refresh list
-                  } else {
-                    toast.error('Failed to start sandbox');
-                  }
-                } catch (error) {
-                  toast.error('Error starting sandbox');
-                } finally {
-                  setActionLoading(prev => ({ ...prev, [sandboxId]: null }));
-                }
-              }}
+              onClick={() => openPreview(sandbox)}
               disabled={currentAction}
-              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:bg-gray-400"
+              className="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none"
             >
-              {currentAction === 'preview' ? 'Starting...' : 'Preview'}
+              {currentAction === 'preview' ? (
+                <span className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  Starting...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  👁️ Preview
+                </span>
+              )}
             </button>
           </>
         )}
@@ -389,9 +380,18 @@ export default function SandboxManager() {
           <button
             onClick={() => handleDelete(sandboxId)}
             disabled={currentAction}
-            className="px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:bg-gray-400"
+            className="px-4 py-2 bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white text-sm rounded-lg font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:transform-none"
           >
-            {currentAction === 'deleting' ? 'Deleting...' : 'Delete'}
+            {currentAction === 'deleting' ? (
+              <span className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                Deleting...
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                🗑️ Delete
+              </span>
+            )}
           </button>
         )}
       </div>
