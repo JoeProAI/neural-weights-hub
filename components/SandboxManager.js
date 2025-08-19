@@ -46,8 +46,38 @@ export default function SandboxManager() {
     }
   };
 
-  const openCollaborativeIDE = (sandboxId) => {
-    setIdeMode(sandboxId);
+  const openCollaborativeIDE = async (sandboxId) => {
+    try {
+      const token = await user.getIdToken();
+      
+      // Get sandbox connection info first
+      const response = await fetch('/api/sandbox/connect', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.connection && data.connection.url) {
+          // Open the actual Daytona IDE URL in a new window
+          window.open(data.connection.url, '_blank', 'noopener,noreferrer');
+          toast.success('Opening IDE in new window...');
+        } else {
+          // Fallback to modal IDE
+          setIdeMode(sandboxId);
+        }
+      } else {
+        // Fallback to modal IDE
+        setIdeMode(sandboxId);
+      }
+    } catch (error) {
+      console.error('Error opening IDE:', error);
+      // Fallback to modal IDE
+      setIdeMode(sandboxId);
+    }
   };
 
   const stopSandbox = async (sandboxId) => {
@@ -147,7 +177,7 @@ export default function SandboxManager() {
         toast.success('Sandbox started', { id: `start-${sandbox.id}` });
         
         // Wait a moment for startup
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 3000));
       }
       
       // Get preview URL
@@ -162,11 +192,20 @@ export default function SandboxManager() {
       
       if (response.ok) {
         const data = await response.json();
-        setPreviewSandbox({
-          id: sandbox.id,
-          name: sandbox.name,
-          url: data.preview?.url || data.previewUrl
-        });
+        const previewUrl = data.preview?.url || data.previewUrl;
+        
+        if (previewUrl) {
+          // Open preview in new window instead of modal
+          window.open(previewUrl, '_blank', 'noopener,noreferrer');
+          toast.success('Opening preview in new window...');
+        } else {
+          // Fallback to modal
+          setPreviewSandbox({
+            id: sandbox.id,
+            name: sandbox.name,
+            url: `https://22222-${sandbox.id}.proxy.daytona.work`
+          });
+        }
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to get preview URL');
