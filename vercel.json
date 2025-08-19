@@ -4,6 +4,19 @@
       "maxDuration": 30
     }
   },
+  "redirects": [
+    {
+      "source": "/",
+      "has": [
+        {
+          "type": "host",
+          "value": "(?!.*neural-weights).*\\.vercel\\.app"
+        }
+      ],
+      "destination": "https://neural-weights-8cf0i00w8-joeproais-projects.vercel.app",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",

@@ -207,56 +207,7 @@ export default function CollaborativeIDE({ sandboxId, onClose }) {
         type: 'code_update',
         code: newCode,
         userId: user.uid,
-        timestamp: Date.now()
       }));
-    }
-  };
-
-  const runCode = async () => {
-    if (!code.trim()) {
-      toast.error('No code to run');
-      return;
-    }
-
-    setIsRunning(true);
-    setOutput('Running...\n');
-
-    try {
-      const token = await user.getIdToken();
-      const response = await fetch('/api/sandbox/execute', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          sandboxId: currentSandboxId,
-          code,
-          language,
-          useAI: aiAssistant
-        })
-      });
-
-      const result = await response.json();
-      
-      if (response.ok) {
-        setOutput(result.output);
-        
-        // Broadcast execution result to collaborators
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(JSON.stringify({
-            type: 'execution_result',
-            output: result.output,
-            userId: user.uid
-          }));
-        }
-      } else {
-        setOutput(`Error: ${result.error}`);
-      }
-    } catch (error) {
-      setOutput(`Execution failed: ${error.message}`);
-    } finally {
-      setIsRunning(false);
     }
   };
 
@@ -535,34 +486,49 @@ export default function CollaborativeIDE({ sandboxId, onClose }) {
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Code Editor */}
-        <div className="flex-1 flex flex-col">
+        <div className="bg-gray-900 border border-gray-700 rounded-lg overflow-hidden">
           <div className="bg-gray-800 px-4 py-2 border-b border-gray-700 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Code className="w-4 h-4 text-gray-400" />
-              <span className="text-sm text-gray-400">Editor</span>
-            </div>
-            {aiAssistant && (
-              <button
-                onClick={askAI}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center space-x-1"
+            <div className="flex items-center space-x-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <span>⚡</span> Lightning Code Editor
+              </h3>
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                className="bg-gray-700 text-white px-3 py-1 rounded text-sm"
               >
-                <Brain className="w-3 h-3" />
-                <span>Ask AI</span>
+                <option value="python">Python</option>
+                <option value="javascript">JavaScript</option>
+                <option value="typescript">TypeScript</option>
+                <option value="bash">Bash</option>
+              </select>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={executeCode}
+                disabled={isRunning}
+                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold flex items-center space-x-2 transform hover:scale-105 transition-all"
+              >
+                <Play size={18} />
+                <span>{isRunning ? '⚡ Running...' : '⚡ Execute'}</span>
               </button>
-            )}
+            </div>
           </div>
+          
           <textarea
             ref={codeEditorRef}
             value={code}
             onChange={(e) => handleCodeChange(e.target.value)}
-            className="flex-1 bg-gray-900 text-white p-4 font-mono text-sm resize-none border-none outline-none"
-            placeholder={`Write your ${language} code here...
+            className="w-full h-80 bg-gray-900 text-white p-4 font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="# Enter your code here - lightning-fast execution ready!
+print('Hello, Neural Weights Hub!')
 
-// Example:
-def hello_world():
-    return "Hello from Neural Weights Hub!"
-
-print(hello_world())`}
+# Try some quick examples:
+# import numpy as np
+# import pandas as pd
+# 
+# Your code runs instantly in the cloud sandbox..."
+            spellCheck={false}
           />
         </div>
 

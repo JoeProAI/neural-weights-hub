@@ -18,9 +18,9 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, []);
 
-  // If user is authenticated, show simple working dashboard
+  // If user is authenticated, show dashboard with sandbox tab active
   if (user) {
-    return <SimpleDashboard />;
+    return <SimpleDashboard defaultTab="sandbox" />;
   }
 
   // If showing auth form

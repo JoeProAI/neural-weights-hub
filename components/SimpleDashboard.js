@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import SandboxManager from './SandboxManager';
 
-export default function SimpleDashboard() {
+export default function SimpleDashboard({ defaultTab = 'overview' }) {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [loading, setLoading] = useState(false);
   const [testResults, setTestResults] = useState({});
 
@@ -129,39 +129,23 @@ export default function SimpleDashboard() {
           </div>
         )}
 
-        {/* Sandbox Tab */}
+        {/* Sandbox Tab - Direct Access */}
         {activeTab === 'sandbox' && (
-          <div className="space-y-8">
+          <div className="space-y-6">
+            {/* Instant Sandbox Access */}
             <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-4">Sandbox Management</h3>
-              <p className="text-gray-400 mb-6">Create, start, stop, and manage your development sandboxes</p>
-              
-              <div className="space-y-4 mb-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <button
-                    onClick={() => {
-                      // Scroll to sandbox manager
-                      const sandboxManager = document.querySelector('[data-sandbox-manager]');
-                      if (sandboxManager) {
-                        sandboxManager.scrollIntoView({ behavior: 'smooth' });
-                      }
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded font-semibold"
-                  >
-                    View Sandbox Manager
-                  </button>
-                  
-                  <button
-                    onClick={() => testAPI('/sandbox/cleanup', 'POST')}
-                    disabled={loading}
-                    className="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 px-6 py-3 rounded font-semibold"
-                  >
-                    {loading ? 'Cleaning...' : 'Cleanup Old Sandboxes'}
-                  </button>
-                </div>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold">Lightning-Fast Development Environment</h3>
+                <button
+                  onClick={() => testAPI('/sandbox/cleanup', 'POST')}
+                  disabled={loading}
+                  className="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 px-4 py-2 rounded text-sm"
+                >
+                  {loading ? 'Cleaning...' : 'Cleanup'}
+                </button>
               </div>
               
-              {/* Sandbox Manager Component */}
+              {/* Direct Sandbox Manager - No Extra Navigation */}
               <SandboxManager />
             </div>
           </div>

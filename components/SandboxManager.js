@@ -227,44 +227,26 @@ export default function SandboxManager() {
     }
 
     return (
-      <div className="flex space-x-2">
+      <div className="flex flex-wrap gap-2">
         {(sandbox.state === 'STARTED' || sandbox.state === 'started') && (
           <>
             <button
-              onClick={() => {
-                console.log('Preview button clicked for sandbox:', sandboxId);
-                const previewUrl = `https://22222-${sandboxId}.proxy.daytona.work`;
-                console.log('Setting preview sandbox:', { id: sandboxId, name: sandbox.name, url: previewUrl });
-                setPreviewSandbox({
-                  id: sandboxId,
-                  name: sandbox.name || `Lab-${sandboxId.substring(0, 8)}`,
-                  url: previewUrl
-                });
-                toast.success('Opening sandbox preview...');
-              }}
-              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              onClick={() => openCollaborativeIDE(sandbox.id)}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-semibold flex items-center gap-2"
+            >
+              <span>⚡</span> Launch IDE
+            </button>
+            <button
+              onClick={() => openPreview(sandbox.id)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
             >
               Preview
             </button>
             <button
-              onClick={() => {
-                console.log('IDE button clicked for sandbox:', sandboxId);
-                setIdeMode({
-                  id: sandboxId,
-                  name: sandbox.name || `Lab-${sandboxId.substring(0, 8)}`
-                });
-                toast.success('🚀 Opening Collaborative IDE...');
-              }}
-              className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700"
+              onClick={() => stopSandbox(sandbox.id)}
+              className="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1 rounded text-sm"
             >
-              🧠 Code
-            </button>
-            <button
-              onClick={() => handleSandboxAction(sandboxId, 'stop')}
-              disabled={currentAction}
-              className="px-3 py-1 bg-orange-600 text-white text-sm rounded hover:bg-orange-700 disabled:bg-gray-400"
-            >
-              {currentAction === 'stop' ? 'Stopping...' : 'Stop'}
+              Stop
             </button>
           </>
         )}
