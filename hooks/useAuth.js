@@ -31,24 +31,27 @@ export function AuthProvider({ children }) {
         // Set user immediately for auth state
         setUser(user);
         
-        // Try to create/update user document in Firestore if available
+        // Try to create/update user document in Firestore if available (non-blocking)
         if (db) {
-          try {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (!userDoc.exists()) {
-              await setDoc(doc(db, 'users', user.uid), {
-                email: user.email,
-                displayName: user.displayName,
-                photoURL: user.photoURL,
-                createdAt: new Date(),
-                subscriptionPlan: 'free',
-                subscriptionStatus: 'active'
-              });
+          // Use setTimeout to make Firestore operations non-blocking
+          setTimeout(async () => {
+            try {
+              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              if (!userDoc.exists()) {
+                await setDoc(doc(db, 'users', user.uid), {
+                  email: user.email,
+                  displayName: user.displayName,
+                  photoURL: user.photoURL,
+                  createdAt: new Date(),
+                  subscriptionPlan: 'free',
+                  subscriptionStatus: 'active'
+                });
+              }
+            } catch (error) {
+              // Silently fail - Firestore issues shouldn't block auth
+              console.debug('Firestore operation skipped:', error.message);
             }
-          } catch (error) {
-            console.warn('Firestore operation failed, continuing without database:', error.message);
-            // Continue without Firestore - auth still works
-          }
+          }, 100);
         }
       } else {
         setUser(null);
