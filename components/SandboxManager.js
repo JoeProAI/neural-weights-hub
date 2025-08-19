@@ -50,7 +50,30 @@ export default function SandboxManager() {
     try {
       const token = await user.getIdToken();
       
-      // Get sandbox connection info first
+      // First ensure sandbox is started
+      const sandbox = sandboxes.find(sb => sb.id === sandboxId);
+      if (sandbox && sandbox.state !== 'STARTED') {
+        toast.loading('Starting sandbox...', { id: `start-${sandboxId}` });
+        const startResponse = await fetch('/api/sandbox/start', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ sandboxId })
+        });
+        
+        if (!startResponse.ok) {
+          toast.error('Failed to start sandbox', { id: `start-${sandboxId}` });
+          return;
+        }
+        toast.success('Sandbox started', { id: `start-${sandboxId}` });
+        
+        // Wait for startup
+        await new Promise(resolve => setTimeout(resolve, 3000));
+      }
+      
+      // Get sandbox connection info
       const response = await fetch('/api/sandbox/connect', {
         method: 'POST',
         headers: {
@@ -70,11 +93,14 @@ export default function SandboxManager() {
           setIdeMode(sandboxId);
         }
       } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to connect to sandbox');
         // Fallback to modal IDE
         setIdeMode(sandboxId);
       }
     } catch (error) {
       console.error('Error opening IDE:', error);
+      toast.error('Error opening IDE');
       // Fallback to modal IDE
       setIdeMode(sandboxId);
     }
@@ -305,7 +331,13 @@ export default function SandboxManager() {
               disabled={currentAction}
               className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:bg-gray-400"
             >
-              {currentAction === 'start' ? 'Starting...' : 'Start'}
+              {currentAction === 'start' ? 'Starting...' : '⚡ Start'}
+            </button>
+            <button
+              onClick={() => openCollaborativeIDE(sandboxId)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+            >
+              Launch IDE
             </button>
             <button
               onClick={async () => {
