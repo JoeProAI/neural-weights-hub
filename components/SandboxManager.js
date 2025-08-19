@@ -50,10 +50,6 @@ export default function SandboxManager() {
     setIdeMode(sandboxId);
   };
 
-  const openPreview = (sandboxId) => {
-    setPreviewSandbox(sandboxId);
-  };
-
   const stopSandbox = async (sandboxId) => {
     await handleSandboxAction(sandboxId, 'stop');
   };
@@ -249,7 +245,7 @@ export default function SandboxManager() {
               <span>⚡</span> Launch IDE
             </button>
             <button
-              onClick={() => openPreview(sandbox.id)}
+              onClick={() => openPreview(sandbox)}
               className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
             >
               Preview
