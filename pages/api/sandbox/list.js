@@ -11,6 +11,7 @@ export default async function handler(req, res) {
     const authHeader = req.headers.authorization;
     const userInfo = await verifyUserToken(authHeader);
     const userId = userInfo.userId;
+    const userEmail = userInfo.email;
     const daytona = new DaytonaService();
     const headers = await daytona.createHeaders();
 

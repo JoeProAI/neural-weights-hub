@@ -4,8 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 export default function AuthForm({ onBack }) {
   const { signUpWithEmail, signInWithEmail, signInWithGoogle, user } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('test@example.com');
+  const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');

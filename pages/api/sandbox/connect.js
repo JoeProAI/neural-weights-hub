@@ -102,15 +102,47 @@ export default async function handler(req, res) {
 
     console.log(`Selected sandbox: ${selectedSandbox.id} (${selectedSandbox.state})`);
 
-    // If sandbox is stopped, start it first
+    // If sandbox is stopped, start it first with enhanced retry logic
     if (selectedSandbox.state === 'STOPPED') {
       console.log('Starting stopped sandbox...');
       try {
-        await fetch(`${daytonaService.baseUrl}/sandbox/${selectedSandbox.id}/start`, {
+        const startResponse = await fetch(`${daytonaService.baseUrl}/sandbox/${selectedSandbox.id}/start`, {
           method: 'POST',
           headers
         });
-        console.log('Sandbox start command sent');
+        
+        if (startResponse.ok) {
+          console.log('Sandbox start command sent successfully');
+          
+          // Wait for sandbox to start (up to 30 seconds)
+          let attempts = 0;
+          const maxAttempts = 15; // 30 seconds with 2-second intervals
+          
+          while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            const statusResponse = await fetch(`${daytonaService.baseUrl}/sandbox/${selectedSandbox.id}`, {
+              method: 'GET',
+              headers
+            });
+            
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.state === 'STARTED') {
+                console.log(`Sandbox started successfully after ${(attempts + 1) * 2} seconds`);
+                selectedSandbox.state = 'STARTED';
+                break;
+              }
+            }
+            attempts++;
+          }
+          
+          if (attempts >= maxAttempts) {
+            console.warn('Sandbox start timeout - continuing with connection attempt');
+          }
+        } else {
+          console.warn(`Failed to start sandbox: ${startResponse.status}`);
+        }
       } catch (startError) {
         console.warn('Failed to start sandbox:', startError.message);
       }
@@ -131,53 +163,97 @@ export default async function handler(req, res) {
       console.warn('Failed to set sandbox public:', publicError.message);
     }
 
-    // Try to get preview link on port 22222 (VS Code)
+    // Enhanced preview link retrieval with retry logic
     let connectionUrl = `https://app.daytona.io/sandbox/${selectedSandbox.id}`;
     let authToken = null;
+    let previewAccessible = false;
 
-    try {
-      const previewResponse = await fetch(`${daytonaService.baseUrl}/sandbox/${selectedSandbox.id}/preview-link/22222`, {
-        method: 'GET',
-        headers
-      });
-      
-      if (previewResponse.ok) {
-        const previewInfo = await previewResponse.json();
-        connectionUrl = previewInfo.url;
-        authToken = previewInfo.token;
-        console.log('Got preview link for port 22222');
-      } else {
-        console.log('Preview link not available, using dashboard URL');
+    // Try to get preview link with retry logic (up to 3 attempts)
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`Preview link attempt ${attempt}/3`);
+        
+        const previewResponse = await fetch(`${daytonaService.baseUrl}/sandbox/${selectedSandbox.id}/preview-link/22222`, {
+          method: 'GET',
+          headers
+        });
+        
+        if (previewResponse.ok) {
+          const previewInfo = await previewResponse.json();
+          connectionUrl = previewInfo.url;
+          authToken = previewInfo.token;
+          console.log(`Got preview link on attempt ${attempt}: ${connectionUrl}`);
+          
+          // Verify preview is accessible
+          try {
+            const verifyResponse = await fetch(connectionUrl, {
+              method: 'HEAD',
+              timeout: 5000,
+              headers: authToken ? { 'x-daytona-preview-token': authToken } : {}
+            });
+            previewAccessible = verifyResponse.ok;
+            console.log(`Preview accessibility check: ${previewAccessible ? 'accessible' : 'not accessible'}`);
+            
+            if (previewAccessible) break; // Success, exit retry loop
+          } catch (verifyError) {
+            console.warn(`Preview verification failed on attempt ${attempt}:`, verifyError.message);
+          }
+        }
+        
+        // Wait before retry (except on last attempt)
+        if (attempt < 3) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+      } catch (previewError) {
+        console.warn(`Preview link error on attempt ${attempt}:`, previewError.message);
+        if (attempt < 3) {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
       }
-    } catch (previewError) {
-      console.warn('Preview link error:', previewError.message);
     }
 
-    // Return connection info
-    if (authToken) {
-      return res.status(200).json({
-        success: true,
-        sandbox: {
-          id: selectedSandbox.id,
-          name: selectedSandbox.name,
-          state: selectedSandbox.state
-        },
-        connectionUrl: connectionUrl,
-        authToken: authToken,
-        instructions: 'Use the auth token in x-daytona-preview-token header'
+    // Always use port 22222 for production sandboxes (VS Code/development environment)
+    connectionUrl = `https://22222-${selectedSandbox.id}.proxy.daytona.work`;
+    console.log('Using production sandbox port 22222:', connectionUrl);
+    
+    // Test port 22222 accessibility
+    try {
+      const port22222Response = await fetch(connectionUrl, { 
+        method: 'HEAD', 
+        timeout: 5000,
+        headers: authToken ? { 'x-daytona-preview-token': authToken } : {}
       });
-    } else {
-      return res.status(200).json({
-        success: true,
-        sandbox: {
-          id: selectedSandbox.id,
-          name: selectedSandbox.name,
-          state: selectedSandbox.state
-        },
-        connectionUrl: connectionUrl,
-        instructions: 'Click to open your development environment'
-      });
+      previewAccessible = port22222Response.ok;
+      console.log(`Port 22222 accessibility: ${previewAccessible ? 'accessible' : 'not accessible'}`);
+    } catch (error) {
+      console.warn('Port 22222 not accessible:', error.message);
+      previewAccessible = false;
     }
+
+    // Return enhanced connection info with accessibility status
+    return res.status(200).json({
+      success: true,
+      sandbox: {
+        id: selectedSandbox.id,
+        name: selectedSandbox.name,
+        state: selectedSandbox.state,
+        snapshot: selectedSandbox.snapshot
+      },
+      connection: {
+        url: connectionUrl,
+        authToken: authToken,
+        accessible: previewAccessible,
+        status: previewAccessible ? 'ready' : 'connecting',
+        instructions: authToken 
+          ? 'Use the auth token in x-daytona-preview-token header'
+          : 'Click to open your development environment'
+      },
+      message: previewAccessible 
+        ? 'Sandbox is ready! Click to open your development environment.'
+        : 'Sandbox is starting up. Preview will be available shortly.',
+      timestamp: new Date().toISOString()
+    });
 
   } catch (error) {
     console.error('Sandbox connection error:', error);

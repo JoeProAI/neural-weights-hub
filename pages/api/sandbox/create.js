@@ -1,5 +1,4 @@
 import { DaytonaService } from '../../../lib/daytona.js';
-import SnapshotManager from '../../../lib/snapshot-manager.js';
 import { verifyUserToken, getUserData, updateUserData } from '../../../lib/firebase-admin.js';
 
 export default async function handler(req, res) {
@@ -13,7 +12,7 @@ export default async function handler(req, res) {
     const userInfo = await verifyUserToken(authHeader);
     const userId = userInfo.userId;
     const userEmail = userInfo.email;
-    const userName = userInfo.name || userEmail?.split('@')[0] || 'User';
+    const userName = userInfo.name || userEmail;
 
     const { 
       name,
@@ -24,44 +23,48 @@ export default async function handler(req, res) {
     // Initialize Daytona SDK
     const daytonaService = new DaytonaService();
     const headers = await daytonaService.createHeaders();
-    
-    console.log(`Creating AI sandbox for user ${userId}: ${name || `neural-weights-${Date.now()}`}`);
-    
-    try {
-      // Check user's current sandbox count first
-      const listResponse = await fetch(`${daytonaService.baseUrl}/sandbox`, {
-        method: 'GET',
-        headers
+    console.log(`Creating sandbox for user ${userId} with plan: ${plan}`);
+      
+    // Get user's current sandboxes to check limits
+    const response = await fetch(`${daytonaService.baseUrl}/sandbox`, {
+      method: 'GET',
+      headers
+    });
+
+    if (response.ok) {
+      const allSandboxes = await response.json();
+      const userSandboxes = allSandboxes.filter(sb => {
+        if (sb.env && sb.env['NEURAL_WEIGHTS_USER_ID'] === userId) return true;
+        if (sb.labels && sb.labels['neural-weights/user-id'] === userId) return true;
+        if (userEmail && sb.labels && sb.labels['neural-weights/user-email'] === userEmail) return true;
+        return false;
       });
 
-      if (listResponse.ok) {
-        const allSandboxes = await listResponse.json();
-        const userSandboxes = allSandboxes.filter(sb => {
-          if (sb.env && sb.env['NEURAL_WEIGHTS_USER_ID'] === userId) return true;
-          if (sb.labels && sb.labels['neural-weights/user-id'] === userId) return true;
-          if (userEmail && sb.labels && sb.labels['neural-weights/user-email'] === userEmail) return true;
-          if (sb.name && sb.name.includes(userId.substring(0, 8))) return true;
-          if (sb.createdBy === userId || sb.owner === userId) return true;
-          return false;
+      const maxSandboxes = plan === 'free' ? 2 : 10;
+      if (userSandboxes.length >= maxSandboxes) {
+        return res.status(400).json({
+          error: 'Sandbox limit reached',
+          message: `You have reached the maximum of ${maxSandboxes} sandboxes for your ${plan} plan. Please delete old sandboxes first.`,
+          currentCount: userSandboxes.length,
+          maxAllowed: maxSandboxes
         });
-
-        // Enforce sandbox limits (3 for free users)
-        const maxSandboxes = plan === 'free' ? 3 : 10;
-        if (userSandboxes.length >= maxSandboxes) {
-          return res.status(400).json({
-            error: 'Sandbox limit reached',
-            message: `You have reached the maximum of ${maxSandboxes} sandboxes for your ${plan} plan. Please delete old sandboxes first.`,
-            currentCount: userSandboxes.length,
-            maxAllowed: maxSandboxes
-          });
-        }
       }
+    }
 
       // Create sandbox with Daytona SDK - DISABLE AUTO-STOP
-      const sandboxName = name || `sandbox-${Date.now()}`;
+      const sandboxName = name;
+      
+      // Determine snapshot based on user plan
+      let snapshotName;
+      if (plan === 'free') {
+        snapshotName = null; // Free users get default environment (no snapshot)
+      } else {
+        snapshotName = 'gpt-20b-production-snapshot'; // Paid users get 20B model access
+      }
+
       const createPayload = {
         name: sandboxName,
-        snapshot: 'python-base',
+        ...(snapshotName && { snapshot: snapshotName }),
         env: {
           'NEURAL_WEIGHTS_USER_ID': userId,
           'NEURAL_WEIGHTS_USER_EMAIL': userEmail,
@@ -72,16 +75,24 @@ export default async function handler(req, res) {
           'neural-weights/user-id': userId,
           'neural-weights/user-email': userEmail,
           'neural-weights/plan': plan,
-          'neural-weights/created': new Date().toISOString()
+          'neural-weights/created': new Date().toISOString(),
+          'neural-weights/auto-stop': 'disabled'
         },
         resources: {
           cpu: plan === 'free' ? 1 : 4,
-          memory: plan === 'free' ? 2048 : 8192, // 2GB free, 8GB paid
-          disk: 10240   // 10GB (max allowed)
+          memory: plan === 'free' ? 1024 : 8192, // 1GB free, 8GB paid
+          disk: plan === 'free' ? 5120 : 10240   // 5GB free, 10GB paid
         },
-        // DISABLE AUTO-STOP - user controls lifecycle
-        autoStop: false,
-        stopAfterInactivity: null
+        // CRITICAL: DISABLE AUTO-STOP - sandboxes run persistently
+        autoStop: 0,
+        autoArchive: 0,
+        autoDelete: -1,
+        // Additional settings to ensure persistence
+        settings: {
+          autoStop: false,
+          autoArchive: false,
+          autoDelete: false
+        }
       };
 
       const sandboxResponse = await fetch(`${daytonaService.baseUrl}/sandbox`, {
@@ -128,31 +139,17 @@ export default async function handler(req, res) {
         success: true,
         message: 'Sandbox created successfully!',
         sandbox: {
-          id: result.id,
-          status: result.status,
+          id: sandbox.id,
+          name: sandbox.name,
+          state: sandbox.state,
+          snapshot: snapshotName || 'default',
           plan: plan,
-          url: result.url,
-          webTerminal: result.webTerminal,
-          jupyter: result.jupyter,
-          ssh: result.ssh,
-          connections: result.connections,
-          accessToken: result.accessToken,
-          state: 'started',
           created: true,
-          note: 'Basic sandbox ready for use!'
+          previewUrl: `https://22222-${sandbox.id}.proxy.daytona.work`,
+          note: plan === 'free' ? 'Basic development environment ready!' : 'Production sandbox with GPT model access ready!'
         }
       });
       
-    } catch (createError) {
-      console.error('Failed to create sandbox:', createError);
-      
-      return res.status(201).json({ 
-        success: true,
-        sandbox: createError,
-        message: 'Sandbox created successfully'
-      });
-    }
-
   } catch (error) {
     console.error('Sandbox creation error:', error);
     return res.status(500).json({ 

@@ -1,7 +1,5 @@
-import { DaytonaService } from '../../../lib/daytona';
-import { db } from '../../../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { verifyIdToken } from '../../../lib/auth';
+import { DaytonaService } from '../../../lib/daytona.js';
+import { verifyUserToken, getUserData } from '../../../lib/firebase-admin.js';
 
 const daytonaService = new DaytonaService();
 
@@ -12,22 +10,13 @@ export default async function handler(req, res) {
 
   try {
     // Verify user authentication
-    const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) {
-      return res.status(401).json({ error: 'No token provided' });
-    }
-
-    const decodedToken = await verifyIdToken(token);
-    const userId = decodedToken.uid;
+    const authHeader = req.headers.authorization;
+    const userInfo = await verifyUserToken(authHeader);
+    const userId = userInfo.userId;
 
     // Get user's sandbox info from Firestore
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    if (!userDoc.exists()) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    const userData = userDoc.data();
-    const sandboxId = userData.sandboxId;
+    const userData = await getUserData(userId);
+    const sandboxId = userData?.sandboxId;
 
     if (!sandboxId) {
       return res.status(200).json({ 
@@ -36,22 +25,57 @@ export default async function handler(req, res) {
       });
     }
 
-    // Get sandbox status from Daytona
-    const sandbox = await daytonaService.getSandboxStatus(sandboxId);
+    // Get sandbox status from Daytona API
+    const headers = await daytonaService.createHeaders();
+    const response = await fetch(`${daytonaService.baseUrl}/sandbox/${sandboxId}`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get sandbox status: ${response.status}`);
+    }
+
+    const sandbox = await response.json();
     
-    // Get usage data from Firestore
-    const usageDoc = await getDoc(doc(db, 'usage', userId));
-    const usage = usageDoc.exists() ? usageDoc.data() : {
-      apiCalls: 0,
-      sandboxHours: 0,
-      storageGB: 0,
-      estimatedCost: 0
+    // Check if preview is accessible
+    const previewUrl = `https://22222-${sandboxId}.proxy.daytona.work`;
+    let previewStatus = 'unknown';
+    
+    try {
+      const previewResponse = await fetch(previewUrl, {
+        method: 'HEAD',
+        timeout: 3000,
+        headers: { 'x-daytona-preview-token': process.env.DAYTONA_PREVIEW_TOKEN || 'default' }
+      });
+      previewStatus = previewResponse.ok ? 'accessible' : 'inaccessible';
+    } catch (error) {
+      previewStatus = 'offline';
+    }
+
+    // Get usage data from user data
+    const usage = {
+      apiCalls: userData?.totalApiCalls || 0,
+      sandboxHours: userData?.sandboxHours || 0,
+      storageGB: userData?.storageGB || 0,
+      estimatedCost: userData?.estimatedCost || 0
     };
 
     res.status(200).json({
       success: true,
-      sandbox: sandbox,
-      usage: usage
+      sandbox: {
+        id: sandbox.id,
+        name: sandbox.name,
+        state: sandbox.state,
+        snapshot: sandbox.snapshot,
+        previewUrl: previewUrl,
+        previewStatus: previewStatus,
+        accessible: previewStatus === 'accessible',
+        resources: sandbox.resources,
+        createdAt: sandbox.createdAt
+      },
+      usage: usage,
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
