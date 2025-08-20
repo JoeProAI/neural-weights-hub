@@ -102,8 +102,31 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('Sandbox start error:', error);
-    return res.status(400).json({ 
-      error: 'Failed to start sandbox',
+    
+    // Return more specific error codes based on the error type
+    if (error.message.includes('Failed to get sandbox')) {
+      return res.status(404).json({ 
+        error: 'Sandbox not found',
+        details: error.message 
+      });
+    }
+    
+    if (error.message.includes('Access denied')) {
+      return res.status(403).json({ 
+        error: 'Access denied to this sandbox',
+        details: error.message 
+      });
+    }
+    
+    if (error.message.includes('Failed to start sandbox')) {
+      return res.status(422).json({ 
+        error: 'Unable to start sandbox - may already be running or in invalid state',
+        details: error.message 
+      });
+    }
+    
+    return res.status(500).json({ 
+      error: 'Internal server error',
       details: error.message 
     });
   }
