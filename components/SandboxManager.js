@@ -85,8 +85,12 @@ export default function SandboxManager() {
       if (response.ok) {
         const data = await response.json();
         if (data.connection && data.connection.url) {
-          // Open the actual Daytona IDE URL in a new window
-          window.open(data.connection.url, '_blank', 'noopener,noreferrer');
+          // Open the actual Daytona IDE URL in a new window without opener reference
+          const newWindow = window.open(data.connection.url, '_blank', 'noopener=yes,noreferrer=yes');
+          if (newWindow) {
+            // Clear opener reference to avoid COOP issues
+            newWindow.opener = null;
+          }
           toast.success('Opening IDE in new window...');
         } else {
           // Fallback to modal IDE
@@ -180,12 +184,11 @@ export default function SandboxManager() {
   };
 
   const openPreview = async (sandbox) => {
-    setActionLoading(prev => ({ ...prev, [sandbox.id]: true }));
     try {
       const token = await user.getIdToken();
       
-      // First ensure sandbox is started
-      if (sandbox.state !== 'STARTED') {
+      // If sandbox is stopped, start it first
+      if (sandbox.state === 'STOPPED') {
         toast.loading('Starting sandbox...', { id: `start-${sandbox.id}` });
         const startResponse = await fetch('/api/sandbox/start', {
           method: 'POST',
@@ -202,12 +205,12 @@ export default function SandboxManager() {
         }
         toast.success('Sandbox started', { id: `start-${sandbox.id}` });
         
-        // Wait a moment for startup
+        // Wait for startup
         await new Promise(resolve => setTimeout(resolve, 3000));
       }
       
       // Get preview URL
-      const response = await fetch('/api/sandbox/preview', {
+      const previewResponse = await fetch('/api/sandbox/preview', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -215,34 +218,45 @@ export default function SandboxManager() {
         },
         body: JSON.stringify({ sandboxId: sandbox.id })
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const previewUrl = data.preview?.url || data.previewUrl;
-        
-        if (previewUrl) {
-          // Open preview in new window instead of modal
-          window.open(previewUrl, '_blank', 'noopener,noreferrer');
+
+      if (previewResponse.ok) {
+        const previewData = await previewResponse.json();
+        if (previewData.preview && previewData.preview.url) {
+          // Open preview in new window without opener reference
+          const newWindow = window.open(previewData.preview.url, '_blank', 'noopener=yes,noreferrer=yes');
+          if (newWindow) {
+            // Clear opener reference to avoid COOP issues
+            newWindow.opener = null;
+          }
           toast.success('Opening preview in new window...');
         } else {
-          // Fallback to modal
+          // Fallback to modal preview
+          const previewUrl = `https://22222-${sandbox.id}.proxy.daytona.work`;
           setPreviewSandbox({
             id: sandbox.id,
-            name: sandbox.name,
-            url: `https://22222-${sandbox.id}.proxy.daytona.work`
+            name: sandbox.name || `Lab-${sandbox.id.substring(0, 8)}`,
+            url: previewUrl
           });
         }
       } else {
-        const error = await response.json();
-        toast.error(error.error || 'Failed to get preview URL');
+        // Fallback to modal preview
+        const previewUrl = `https://22222-${sandbox.id}.proxy.daytona.work`;
+        setPreviewSandbox({
+          id: sandbox.id,
+          name: sandbox.name || `Lab-${sandbox.id.substring(0, 8)}`,
+          url: previewUrl
+        });
       }
     } catch (error) {
       console.error('Error opening preview:', error);
       toast.error('Error opening preview');
-    } finally {
-      setActionLoading(prev => ({ ...prev, [sandbox.id]: false }));
-      // Refresh sandbox list to get updated states
-      fetchSandboxes();
+      // Fallback to modal preview
+      const previewUrl = `https://22222-${sandbox.id}.proxy.daytona.work`;
+      setPreviewSandbox({
+        id: sandbox.id,
+        name: sandbox.name || `Lab-${sandbox.id.substring(0, 8)}`,
+        url: previewUrl
+      });
     }
   };
 
